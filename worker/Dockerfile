@@ -11,6 +11,4 @@ RUN chmod +x entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 5001
-
 ENTRYPOINT ["./entrypoint.sh"]

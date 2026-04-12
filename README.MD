@@ -39,9 +39,9 @@ Application started
 ### 3. Docker Compose
 
 **`docker-compose.yml`** defines three services on a shared `app-network`:
-- **redis** — message broker with a healthcheck (`redis-cli ping`)
-- **worker** — starts after redis is healthy (`service_healthy`), logs mounted to `./worker/logs`, has a healthcheck (checks log for `Worker started`), restarts automatically (`unless-stopped`)
-- **app** — starts after redis is up and worker is healthy, exposed on port `5000`, has a healthcheck (HTTP request to `/`), restarts automatically (`unless-stopped`)
+- **redis** — message broker
+- **worker** — starts after redis, logs mounted to `./worker/logs`, restarts automatically (`unless-stopped`)
+- **app** — starts after redis and worker, exposed on port `5000`, restarts automatically (`unless-stopped`)
 
 ### 4. CI/CD Pipeline
 

@@ -17,6 +17,7 @@ services:
       - ./worker/logs:/app/logs
     depends_on:
       - redis
+    restart: unless-stopped
 
   app:
     build:
@@ -29,6 +30,7 @@ services:
     depends_on:
       - redis
       - worker
+    restart: unless-stopped
 
 networks:
   app-network:
