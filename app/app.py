@@ -1,9 +1,9 @@
 from flask import Flask
-import requests
+import redis
 
 app = Flask(__name__)
 
-WORKER_URL = "http://worker:5001/process"
+r = redis.Redis(host="redis", port=6379)
 
 @app.route("/")
 def home():
@@ -11,10 +11,7 @@ def home():
 
 @app.route("/task")
 def send_task():
-    try:
-        r = requests.get(WORKER_URL)
-        return f"Worker response: {r.text}"
-    except Exception as e:
-        return f"Error contacting worker: {str(e)}"
+    r.lpush("tasks", "task")
+    return "Task queued"
 
 app.run(host="0.0.0.0", port=5000)

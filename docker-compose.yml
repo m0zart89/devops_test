@@ -1,1 +1,35 @@
 version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - app-network
+
+  worker:
+    build:
+      context: ./worker
+    container_name: worker
+    networks:
+      - app-network
+    volumes:
+      - ./worker/logs:/app/logs
+    depends_on:
+      - redis
+
+  app:
+    build:
+      context: ./app
+    container_name: app
+    networks:
+      - app-network
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+      - worker
+
+networks:
+  app-network:
+    driver: bridge

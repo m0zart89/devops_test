@@ -1,11 +1,12 @@
-from flask import Flask
+import redis
 
-app = Flask(__name__)
+r = redis.Redis(host="redis", port=6379)
 
-@app.route("/process")
-def process():
-    print("Worker received task")
-    print("Processing task...")
-    return "Task completed"
+print("Worker started, waiting for tasks...", flush=True)
 
-app.run(host="0.0.0.0", port=5001)
+while True:
+    task = r.brpop("tasks", timeout=5)
+    if task:
+        print("Worker received task")
+        print("Processing task...")
+        print("Task completed")
