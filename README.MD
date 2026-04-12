@@ -1,76 +1,34 @@
 # DevOps Engineer Technical Task
 
-## Overview
+## What Was Required
 
-This assignment evaluates your knowledge of:
-
-* Docker
-* Container networking
-* Custom Docker entrypoints
-* Basic service communication
-* CI/CD pipelines
-* Building Docker images
-
-The goal is to run a small multi-container application and configure a CI pipeline that builds the Docker image.
+- Create Dockerfiles for two services: **app** (Python Flask API) and **worker**
+- Add a custom **entrypoint script** for the app container
+- Create a **docker-compose.yml** that runs both services on the same network with worker starting before app
+- Set up a **CI/CD pipeline** that builds the app Docker image and saves it as an artifact
+- *(Bonus)* Mount worker logs to a host directory
+- *(Bonus)* Add Redis as a message broker between app and worker
 
 ---
 
-# Project Description
+## What Was Implemented
 
-The system consists of **two services**:
+### 1. Dockerfiles
 
-1. **App service**
+**`app/Dockerfile`** — builds the app image:
+- Base image: `python:3.11-slim`
+- Installs dependencies from `requirements.txt`
+- Copies and runs a custom entrypoint script
 
-   * A simple Python API
-   * Sends tasks to a worker
+**`worker/Dockerfile`** — builds the worker image:
+- Base image: `python:3.11-slim`
+- Installs dependencies from `requirements.txt`
+- Sets `PYTHONUNBUFFERED=1` for real-time log output
+- Runs via a custom entrypoint script that pipes output to a log file
 
-2. **Worker service**
+### 2. Custom Entrypoint (app)
 
-   * Processes tasks
-   * Logs results
-
-Both services must communicate using Docker networking.
-
----
-
-# Requirements
-
-You must complete the following tasks:
-
-## 1. Build Docker Images
-
-Create Dockerfiles for the services:
-
-### App Container
-
-Must:
-
-* Run Python - Initial Dockerfile already provided with the desired docker image.
-* Install dependencies (from the requirements file)
-* Use a **custom entrypoint script** (see step number 2)
-* Start the API server
-
-### Worker Container
-
-Must:
-
-* Run a Python script (install dependencies if needed)
-* Receive messages from the app
-
----
-
-## 2. Custom Entrypoint
-
-The **app container must run using a custom entrypoint script**.
-Use bash for the entry point script
-
-The script should:
-
-1. Print a startup message
-2. Run a startup script
-3. Start the application
-
-Example expected output:
+**`app/entrypoint.sh`** prints startup messages and delegates initialization to `app/init.sh` before starting the application:
 
 ```
 Starting App Container...
@@ -78,95 +36,94 @@ Running initialization script...
 Application started
 ```
 
----
+### 3. Docker Compose
 
-## 3. Docker Compose
+**`docker-compose.yml`** defines three services on a shared `app-network`:
+- **redis** — message broker with a healthcheck (`redis-cli ping`)
+- **worker** — starts after redis is healthy (`service_healthy`), logs mounted to `./worker/logs`, has a healthcheck (checks log for `Worker started`), restarts automatically (`unless-stopped`)
+- **app** — starts after redis is up and worker is healthy, exposed on port `5000`, has a healthcheck (HTTP request to `/`), restarts automatically (`unless-stopped`)
 
-Create a `docker-compose.yml` file that:
+### 4. CI/CD Pipeline
 
-* Runs both containers
-* Connects them on the same network
-* Ensures the worker container starts before the app
+**`.github/workflows/ci.yml`** — GitHub Actions pipeline triggered on push to `main`:
+1. Checks out the repository
+2. Builds the Docker image for the app
+3. Saves the image as `app-image.tar`
+4. Uploads it as a pipeline artifact
 
-Expected services:
+### 5. Bonus: Worker Logging
 
-```
-app
-worker
-```
+Worker output is captured via `tee` in `worker/entrypoint.sh` and written to `/app/logs/worker.log`, which is mounted to `./worker/logs/` on the host. Logs persist across container restarts.
 
-The app should be able to reach the worker using the hostname:
+### 6. Bonus: Redis
 
-```
-http://worker:5001
-```
-
----
-
-## 4. Application Behavior
-
-When calling:
-
-```
-http://localhost:5000/task
-```
-
-The app should send a task to the worker.
-
-The worker should log something like:
-
-```
-Worker received task
-Processing task...
-Task completed
-```
+Redis is used as a message broker between the app and worker:
+- **app** pushes tasks to a Redis list (`lpush tasks`)
+- **worker** blocks on the list waiting for tasks (`brpop tasks`)
 
 ---
 
-# CI/CD Pipeline
-
-Create a CI pipeline that runs when code is merged into the **main branch**.
-
-The pipeline must:
-
-1. Checkout the repository
-2. Build the Docker image for the app
-3. Save the built image as a **pipeline artifact**
-
-Example artifact:
+## Project Structure
 
 ```
-app-image.tar
+.
+├── app/
+│   ├── app.py              # Flask API
+│   ├── Dockerfile
+│   ├── entrypoint.sh       # Custom entrypoint
+│   ├── init.sh             # Initialization script
+│   └── requirements.txt
+├── worker/
+│   ├── worker.py           # Redis consumer
+│   ├── Dockerfile
+│   ├── entrypoint.sh       # Entrypoint with log piping
+│   ├── logs/               # Worker logs (mounted from container)
+│   └── requirements.txt
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions pipeline
+└── docker-compose.yml
 ```
-
-You may use any CI system such as:
-
-* GitHub Actions
-* GitLab CI
-* Bitbucket Pipelines
 
 ---
 
-# Deliverables
+## How to Run
 
-Please submit:
-
-1. Completed Dockerfiles
-2. docker-compose.yml
-3. Entrypoint script
-4. CI pipeline file
-
-The project must run with:
-
-```
+```bash
 docker-compose up --build
 ```
 
 ---
 
-# Bonus (Optional)
+## How to Verify
 
-* Add logging for the worker mounted to a specific dir.
-* Add redis server in between the apps so the message will go through the redis.
+**1. Check the app is running:**
+```bash
+curl http://localhost:5000/
+# → App is running
+```
 
----
+**2. Send a task through Redis to the worker:**
+```bash
+curl http://localhost:5000/task
+# → Task queued
+```
+
+**3. Check worker logs:**
+```bash
+docker logs worker
+# → Worker received task
+# → Processing task...
+# → Task completed
+```
+
+Or check the log file on the host:
+```bash
+cat worker/logs/worker.log
+```
+
+**4. Check CI pipeline:**
+
+Go to: [https://github.com/m0zart89/devops_test/actions](https://github.com/m0zart89/devops_test/actions)
+
+The pipeline runs on every push to `main` and produces `app-image.tar` as a downloadable artifact.
